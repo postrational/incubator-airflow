@@ -25,11 +25,12 @@ from time import sleep
 
 import airflow
 from airflow import hooks, settings
-from airflow.exceptions import AirflowException, AirflowSensorTimeout, AirflowSkipException
+from airflow.exceptions import AirflowException, AirflowSensorTimeout, AirflowSkipException, AirflowRetryException
 from airflow.models import BaseOperator, TaskInstance, Connection as DB
 from airflow.hooks.base_hook import BaseHook
 from airflow.utils.state import State
 from airflow.utils.decorators import apply_defaults
+from airflow.utils.signal_handler import SignalHandler
 
 
 class BaseSensorOperator(BaseOperator):
@@ -70,12 +71,19 @@ class BaseSensorOperator(BaseOperator):
 
     def execute(self, context):
         started_at = datetime.now()
+        signal_handler = SignalHandler()
+
         while not self.poke(context):
             if (datetime.now() - started_at).total_seconds() > self.timeout:
                 if self.soft_fail:
                     raise AirflowSkipException('Snap. Time is OUT.')
                 else:
                     raise AirflowSensorTimeout('Snap. Time is OUT.')
+
+            if signal_handler.sigint_received:
+                logging.info('Suspending sensor operator.')
+                raise AirflowRetryException('Sensor suspended, should retry later.')
+
             sleep(self.poke_interval)
         logging.info("Success criteria met. Exiting.")
 

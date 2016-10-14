@@ -30,3 +30,7 @@ class AirflowTaskTimeout(AirflowException):
 
 class AirflowSkipException(AirflowException):
     pass
+
+
+class AirflowRetryException(AirflowException):
+    pass
